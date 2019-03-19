@@ -1,9 +1,10 @@
 ROOT ?= $(shell pwd)
 AWS_ACCOUNT_ID := $(shell aws sts get-caller-identity --query 'Account' --output text)
-LAYER_NAME ?= awscli-layer
-LAYER_DESC ?= awscli-layer
-S3BUCKET ?= pahud-tmp-ap-northeast-1
-LAMBDA_REGION ?= ap-northeast-1
+LAYER_NAME ?= awscli
+LAYER_KEY ?= layers/awscli-layer
+LAYER_DESC ?= This layer adds support for the AWS CLI (binaries installed at /opt/awscli).
+LAMBDA_REGION ?= us-east-1
+S3BUCKET_SUFFIX ?= $(LAMBDA_REGION).andyhoppatamazon.com
 LAMBDA_FUNC_NAME ?= awscli-layer-test-func
 LAMBDA_FUNC_DESC ?= awscli-layer-test-func
 LAMBDA_ROLE_ARN ?= arn:aws:iam::$(AWS_ACCOUNT_ID):role/service-role/LambdaDefaultRole
@@ -23,14 +24,14 @@ layer-zip:
 	( cd layer; zip -r ../layer.zip * )
 	
 layer-upload:
-	@aws --profile=$(AWS_PROFILE) s3 cp layer.zip s3://$(S3BUCKET)/$(LAYER_NAME).zip
+	@aws --profile=$(AWS_PROFILE) --region $(LAMBDA_REGION) s3 cp layer.zip s3://$(S3BUCKET_SUFFIX)/$(LAYER_KEY).zip
 	
 layer-publish:
 	@aws --profile=$(AWS_PROFILE) --region $(LAMBDA_REGION) lambda publish-layer-version \
 	--layer-name $(LAYER_NAME) \
-	--description $(LAYER_DESC) \
+	--description "$(LAYER_DESC)" \
 	--license-info "MIT" \
-	--content S3Bucket=$(S3BUCKET),S3Key=$(LAYER_NAME).zip \
+	--content S3Bucket=$(S3BUCKET_SUFFIX),S3Key=$(LAYER_KEY).zip \
 	--compatible-runtimes provided
 
 sam-layer-package:
@@ -39,7 +40,7 @@ sam-layer-package:
 	-v $(HOME)/.aws:/home/samcli/.aws \
 	-w /home/samcli/workdir \
 	-e AWS_DEFAULT_REGION=$(LAMBDA_REGION) \
-	pahud/aws-sam-cli:latest sam package --template-file sam-layer.yaml --s3-bucket $(S3BUCKET) --output-template-file sam-layer-packaged.yaml
+	pahud/aws-sam-cli:latest sam package --template-file sam-layer.yaml --s3-bucket $(S3BUCKET_SUFFIX) --output-template-file sam-layer-packaged.yaml
 	@echo "[OK] Now type 'make sam-layer-deploy' to deploy your Lambda layer with SAM"
 	
 .PHONY: sam-layer-publish
